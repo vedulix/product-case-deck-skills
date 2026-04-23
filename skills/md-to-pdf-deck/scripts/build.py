@@ -186,5 +186,48 @@ subprocess.run([
 ], check=True)
 print("✓ HTML generated")
 
-subprocess.run(["weasyprint", "out.html", str(out_pdf)], check=True)
+if layout == "longread":
+    # Two-pass render: first with tall page to measure content extent,
+    # then re-render with page height that matches content + bottom margin.
+    # This avoids the "empty dark space at the bottom" when the tall page
+    # sentinel height exceeds what the content actually needs.
+    from weasyprint import HTML
+
+    def max_content_bottom(box, exclude_types, acc):
+        cls = box.__class__.__name__
+        if cls not in exclude_types:
+            try:
+                y_end = float(box.position_y) + float(box.margin_height())
+                if y_end > acc[0]:
+                    acc[0] = y_end
+            except Exception:
+                pass
+        for ch in getattr(box, "children", ()) or ():
+            max_content_bottom(ch, exclude_types, acc)
+        return acc[0]
+
+    doc = HTML(filename="out.html", base_url=str(work)).render()
+    # Exclude PageBox (covers full page height) and MarginBox (decorative
+    # margin boxes) from the measurement — we only care about actual content.
+    excluded = {"PageBox", "MarginBox"}
+    acc = [0.0]
+    for page in doc.pages:
+        max_content_bottom(page._page_box, excluded, acc)
+    content_bottom_px = acc[0]
+
+    if content_bottom_px > 0:
+        # WeasyPrint uses CSS px (1px = 1/96 inch = 0.2646mm).
+        content_bottom_mm = content_bottom_px * 25.4 / 96
+        # +18mm bottom margin (matches our @page margin), +4mm buffer.
+        new_height_mm = int(content_bottom_mm + 18 + 4)
+        # Rewrite override.css with fitted page height and re-render.
+        fitted = override_css.replace("5000mm", f"{new_height_mm}mm")
+        (work / "override.css").write_text(fitted)
+        doc = HTML(filename="out.html", base_url=str(work)).render()
+        print(f"✓ fitted page height: {new_height_mm}mm (content {content_bottom_mm:.0f}mm)")
+
+    doc.write_pdf(str(out_pdf))
+else:
+    subprocess.run(["weasyprint", "out.html", str(out_pdf)], check=True)
+
 print(f"✓ PDF → {out_pdf}")

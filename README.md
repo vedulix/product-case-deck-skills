@@ -21,6 +21,7 @@ Personal Codex skill pack for product case solving, market analysis, McKinsey-st
 - `research-add-fields` - extends research field schema
 - `research-add-items` - adds new entities/items to an ongoing research project
 - `tg-research` - Telegram research pipeline with MCP collection, deep research, and reporting
+- `report-styling` - analytical MD reports (benchmarks, weekly syncs, A/B results) in McKinsey style — active headlines, matplotlib charts > tables, Notion-style `<details>` collapsibles, slide-mode helpers + 7 chart templates
 
 ## Install
 
